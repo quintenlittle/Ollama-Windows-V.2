@@ -171,6 +171,8 @@ Customize your experience in the .bat file!
  
 ## Related
  
+- [Ollama-Linux-V.1](https://github.com/quintenlittle/Ollama-Linux-V.1) — Same setup guide for Linux
+- [Ollama-Android-V.1](https://github.com/quintenlittle/Ollama-Android-V.1) — Same setup guide for Android
 - [RAG-Technique-V.1](https://github.com/quintenlittle/RAG-Technique-V.1) — Index your personal files and query them with a local LLM
 
 ---
