@@ -160,6 +160,8 @@ C:\
 Desktop\
 └── CUSTOM_MODEL_NAME.bat        # Double-click launcher with zero history
 ```
+
+![You can customize the .bat file to make it look however you want.](SCREENSHOT.png)
  
 ---
  
