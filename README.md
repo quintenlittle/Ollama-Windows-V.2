@@ -1,178 +1,240 @@
-# Ollama-Windows-V.1
- 
-> Run a fully offline, zero-history LLM on Windows using Ollama — no cloud, no logs, no telemetry.
- 
----
- 
-## Overview
- 
-This guide walks you through installing Ollama on Windows, creating a custom model with a system prompt, and setting up a desktop shortcut so you can launch your local LLM with a double-click. Every session starts fresh with zero history.
- 
----
- 
-## Prerequisites
- 
-- Windows 10 or 11
-- Command Prompt or PowerShell
-- An internet connection for the initial setup (after that, fully offline)
----
- 
-## Step 1 — Install Ollama
- 
-Open Command Prompt and run:
- 
-```cmd
-curl -L "https://ollama.com/download/OllamaSetup.exe" -o "%TEMP%\OllamaSetup.exe" && "%TEMP%\OllamaSetup.exe"
-```
- 
-Follow the installer, then verify it worked:
- 
-```cmd
-ollama --version
-```
- 
----
- 
-## Step 2 — Pull Your Model
- 
-Replace `MODEL_NAME` with whichever model you want (e.g. `llama3`, `mistral`, `gemma3`, `phi3`):
- 
-```cmd
-ollama pull MODEL_NAME
-```
- 
-Browse available models at [ollama.com/library](https://ollama.com/library).
- 
----
- 
-## Step 3 — Create the Modelfile **You can skip making a modelfile if you don't want a "prompt injected" model.
- 
-A Modelfile lets you bake a system prompt into a custom model so it starts every session with your instructions already loaded.
- 
-Create a new text file at `C:\` named exactly:
- 
-```
-modelfile
-```
- 
-> **Important:** No file extension — the file should be named `modelfile`, not `modelfile.txt`. In File Explorer, make sure file extensions are visible under View → Show → File name extensions so you can confirm there's no `.txt` on the end.
- 
-Open the file and paste the following, replacing `MODEL_NAME` with your model and writing your system prompt inside the quotes:
- 
-```
-FROM MODEL_NAME
-SYSTEM "Your prompt injection goes here."
-```
- 
-**Example:**
- 
-```
-FROM mistral
-SYSTEM "You are a helpful assistant. Be concise and direct. Never mention that you are an AI."
-```
-Follow the link for a collection of prompt injections for various models: [Prompt Injections](https://github.com/elder-plinius/L1B3RT4S) 
+# Ollama-Windows-V.2
 
-Save and close the file. (Make sure the file is saved in `C:\` for this next step.
- 
+> Extends V.1 with local text-to-speech (TTS) and a document viewer — your LLM now speaks its responses and can open files directly from the terminal.
+
 ---
- 
-## Step 4 — Create Your Custom Model
- 
-Open Command Prompt and navigate to `C:\`:
- 
-```cmd
-cd /d C:\
-```
- 
-Create the custom model, replacing `CUSTOM_MODEL_NAME` with whatever you want to call it:
- 
-```cmd
-ollama create CUSTOM_MODEL_NAME -f ./modelfile
-```
- 
-Verify it was created:
- 
-```cmd
-ollama list
-```
- 
+
+## Overview
+
+This guide builds directly on [Ollama-Windows-V.1](https://github.com/quintenlittle/Ollama-Windows-V.1). Complete that setup first, then follow the steps here to add:
+
+- **Text-to-speech** — responses are spoken aloud using a local piper voice model, no cloud, no API
+- **Document viewer** — open PDF, DOCX, and text files directly from the terminal using your system's default applications
+
+No RAG or indexing is involved here. That is covered in a separate repo.
+
 ---
- 
-## Step 5 — Run It
- 
-```cmd
-ollama run CUSTOM_MODEL_NAME
-ollama run MODEL_NAME <- (If you're running a base model).
-```
- 
-Type your questions and press Enter. Use `/bye` or `Ctrl+C` to exit.
- 
+
+## Prerequisites
+
+- Completed [Ollama-Windows-V.1](https://github.com/quintenlittle/Ollama-Windows-V.1) setup
+- Windows 10 or 11
+- Python 3.10 or higher — download from [python.org](https://www.python.org/downloads/) if not already installed
+  > During installation check **Add Python to PATH**
+- [VLC Media Player](https://www.videolan.org/vlc/) — used for audio playback (free, lightweight)
+
 ---
- 
-## Step 6 — Desktop Shortcut (Optional but Recommended)
- 
-Instead of opening Command Prompt every time or using the ollama GUI, create a `.bat` file you can double-click from your desktop.
- 
-Create a new text file anywhere, open it, and paste the following — replacing `CUSTOM_MODEL_NAME` with your model name:
- 
+
+## Part 1 — Text-to-Speech
+
+### Step 1 — Install piper-tts
+
+Open Command Prompt and run:
+
+```
+pip install piper-tts
+```
+
+Verify it installed:
+
+```
+python -m piper --help
+```
+
+---
+
+### Step 2 — Download a Voice Model
+
+Create a folder to store your voice models:
+
+```
+mkdir C:\ollama-voices
+```
+
+Download the Cori voice (British female, high quality — recommended):
+
+```
+curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/cori/high/en_GB-cori-high.onnx" -o "C:\ollama-voices\en_GB-cori-high.onnx"
+curl -L "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/cori/high/en_GB-cori-high.onnx.json" -o "C:\ollama-voices\en_GB-cori-high.onnx.json"
+```
+
+> **Both files are required.** The `.onnx` is the voice model and the `.onnx.json` is its config. Always download them as a pair.
+
+Test the voice:
+
+```
+echo Hello, I am now speaking. | python -m piper --model C:\ollama-voices\en_GB-cori-high.onnx --output_file C:\ollama-voices\test.wav && C:\ollama-voices\test.wav
+```
+
+You should hear the voice play through your speakers.
+
+---
+
+### Step 3 — Update Your .bat File
+
+Open your existing `.bat` file from V.1 and replace the contents with the following — substituting your model name and voice path:
+
 ```bat
 @echo off
-title CUSTOM_MODEL_NAME
+title REBEL
 set OLLAMA_NOHISTORY=1
-ollama run CUSTOM_MODEL_NAME
-pause
+
+:loop
+set /p "USER_INPUT=Input: "
+if "%USER_INPUT%"=="" goto loop
+
+for /f "delims=" %%R in ('echo %USER_INPUT% ^| ollama run CUSTOM_MODEL_NAME 2^>nul') do (
+    set "RESPONSE=%%R"
+    echo Output: %%R
+)
+
+echo %RESPONSE% | python -m piper --model C:\ollama-voices\en_GB-cori-high.onnx --output_file C:\ollama-voices\response.wav 2>nul
+start /wait "" C:\ollama-voices\response.wav
+
+goto loop
 ```
- 
-Save and close the file, then rename it from `filename.txt` to `filename.bat`.
- 
-> **Tip:** To rename the extension in File Explorer, make sure file extensions are visible (View → Show → File name extensions), then right-click → Rename and change `.txt` to `.bat`.
- 
-Double-click the `.bat` file to launch your model in a terminal window. Every session starts fresh — no history is saved.
- 
-Move it to your Desktop for easy access.
- 
+
+> **Note:** Replace `CUSTOM_MODEL_NAME` with your model name from V.1.
+> The `start /wait` line plays the audio using your system default WAV player and waits for it to finish before accepting the next input. VLC handles this cleanly.
+
 ---
- 
+
+### Step 4 — Set VLC as Default for WAV Files (Recommended)
+
+1. Right-click any `.wav` file → **Open with** → **Choose another app**
+2. Select **VLC media player**
+3. Check **Always use this app to open .wav files**
+4. Click **OK**
+
+This ensures audio plays without a visible window interrupting the terminal.
+
+> **Tip:** For truly silent playback with no window at all, use VLC's command line mode. Replace the `start /wait` line in your `.bat` with:
+> ```
+> "C:\Program Files\VideoLAN\VLC\vlc.exe" --intf dummy --play-and-exit C:\ollama-voices\response.wav 2>nul
+> ```
+
+---
+
+### Changing Voices
+
+Browse available voices at: **https://rhasspy.github.io/piper-samples/**
+
+Each voice entry has a listen button so you can preview before downloading. To swap voices:
+
+1. Download the new `.onnx` and `.onnx.json` pair into `C:\ollama-voices\`
+2. Update the `--model` path in your `.bat` file to point at the new `.onnx` file
+3. Check the `.onnx.json` file for `"sample_rate"` — most voices are `22050` but some low-quality variants use `16000`. This matters if the voice sounds too fast or too slow
+
+---
+
+## Part 2 — Document Viewer
+
+### Step 5 — Add Open-File Support to Your .bat
+
+This adds a command that lets you open a file by typing its path directly in the terminal. The file opens in your system default application — PDFs in your PDF viewer, DOCX in Word, etc.
+
+Add the following block inside your `.bat` loop, before the `goto loop` line:
+
+```bat
+if /i "%USER_INPUT:~0,5%"=="open " (
+    set "FILEPATH=%USER_INPUT:~5%"
+    start "" "%FILEPATH%"
+    goto loop
+)
+```
+
+**Usage example:**
+
+```
+Input: open C:\Users\YourName\Documents\report.pdf
+```
+
+The file opens immediately in whatever application is set as default for that file type on your system.
+
+---
+
+### Step 6 — Full Updated .bat File
+
+Here is the complete `.bat` file combining everything from V.1 and V.2:
+
+```bat
+@echo off
+title REBEL
+set OLLAMA_NOHISTORY=1
+
+:loop
+set /p "USER_INPUT=Input: "
+if "%USER_INPUT%"=="" goto loop
+
+:: Open file command
+if /i "%USER_INPUT:~0,5%"=="open " (
+    set "FILEPATH=%USER_INPUT:~5%"
+    start "" "%FILEPATH%"
+    goto loop
+)
+
+:: Send to model and speak response
+for /f "delims=" %%R in ('echo %USER_INPUT% ^| ollama run CUSTOM_MODEL_NAME 2^>nul') do (
+    set "RESPONSE=%%R"
+    echo Output: %%R
+)
+
+echo %RESPONSE% | python -m piper --model C:\ollama-voices\en_GB-cori-high.onnx --output_file C:\ollama-voices\response.wav 2>nul
+"C:\Program Files\VideoLAN\VLC\vlc.exe" --intf dummy --play-and-exit C:\ollama-voices\response.wav 2>nul
+
+goto loop
+```
+
+Save, rename to `.bat` if needed, and double-click to launch.
+
+---
+
 ## How It Works
- 
+
 | Feature | Detail |
-|---|---|
-| **Zero history** | `OLLAMA_NOHISTORY=1` ensures nothing is logged between sessions |
-| **System prompt** | Baked into the model at creation — loads automatically every run |
-| **Fully offline** | After the initial pull, no internet connection is needed |
-| **One-click launch** | The `.bat` file opens a terminal and starts the model instantly |
- 
+|---------|--------|
+| **Text-to-speech** | piper converts the model response to a WAV file locally, VLC plays it silently |
+| **Fully offline** | piper runs entirely on-device, no internet required after voice model download |
+| **Document viewer** | `open` command uses Windows `start` to launch the file in its default application |
+| **Zero history** | `OLLAMA_NOHISTORY=1` carries over from V.1 |
+| **No RAG** | This version is chat-only — document indexing and querying is covered separately |
+
 ---
- 
-## Customization Tips
- 
-- **Change the system prompt** — edit the `modelfile` and re-run `ollama create` with the same name to overwrite it
-- **Multiple personalities** — create several modelfiles and `.bat` files for different use cases (e.g. a coding assistant, a writing assistant, a research assistant)
-- **Window title** — change `title CUSTOM_MODEL_NAME` in the `.bat` file to label the terminal window however you like
----
- 
+
 ## Files Overview
- 
+
 ```
 C:\
-└── modelfile                    # Defines the base model and system prompt
- 
+└── modelfile                        # From V.1 — base model and system prompt
+
+C:\ollama-voices\
+├── en_GB-cori-high.onnx             # Piper voice model
+└── en_GB-cori-high.onnx.json        # Voice config (required alongside .onnx)
+
 Desktop\
-└── CUSTOM_MODEL_NAME.bat        # Double-click launcher with zero history
+└── CUSTOM_MODEL_NAME.bat            # Updated launcher with TTS and file open
 ```
 
 ---
-Customize your experience in the .bat file!
+
+## Troubleshooting
+
+**Voice sounds too fast or too slow**
+The voice sample rate doesn't match. Check `"sample_rate"` inside the `.onnx.json` file. If it says `16000` the voice runs at 16kHz — this is normal for `low` quality variants. The bat file plays whatever WAV piper generates so speed is controlled by the model itself, not the playback.
+
+**No audio plays**
+Confirm VLC is installed and the path `C:\Program Files\VideoLAN\VLC\vlc.exe` exists. On some systems VLC installs to `C:\Program Files (x86)\VideoLAN\VLC\vlc.exe` — check both.
+
+**python -m piper not found**
+Python was not added to PATH during installation. Re-run the Python installer, choose **Modify**, and check **Add Python to environment variables**.
+
+**open command not working**
+The file path has spaces — wrap it in quotes: `open "C:\My Documents\my file.pdf"`
+
 ---
 
-![SCREENSHOT](SCREENSHOT.png)
- 
----
- 
 ## Related
- 
-- [Ollama-Linux-V.1](https://github.com/quintenlittle/Ollama-Linux-V.1) — Same setup guide for Linux
-- [Ollama-Android-V.1](https://github.com/quintenlittle/Ollama-Android-V.1) — Same setup guide for Android
-- [RAG-Technique-V.1](https://github.com/quintenlittle/RAG-Technique-V.1) — Index your personal files and query them with a local LLM
 
----
+- [Ollama-Windows-V.1](https://github.com/quintenlittle/Ollama-Windows-V.1) — Base setup: install Ollama, create a custom model, desktop shortcut
+- [Ollama-Linux-V.1](https://github.com/quintenlittle/Ollama-Linux-V.1) — Same base setup for Linux
+- [RAG-Technique-V.1](https://github.com/quintenlittle/RAG-Technique-V.1) — Index your personal document library and query it with a local LLM
